@@ -47,5 +47,14 @@ def get_dtypes() -> dict[str, str]:
     return {column: str(dtype) for column, dtype in _dataset.dtypes.items()}
 
 
+def get_preview_records(limit: int = 10) -> list[dict]:
+    if _dataset is None:
+        return []
+
+    preview = _dataset.head(limit)
+    preview = preview.where(pd.notna(preview), None)
+    return preview.to_dict(orient="records")
+
+
 def read_csv_file(file_content: bytes) -> pd.DataFrame:
     return pd.read_csv(BytesIO(file_content))

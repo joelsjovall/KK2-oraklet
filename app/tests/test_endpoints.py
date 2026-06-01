@@ -61,7 +61,7 @@ def test_ask_ai_returns_answer(monkeypatch) -> None:
     )
 
     class FakeChain:
-        def run(self, data):
+        def invoke(self, data):
             return ParserOutput(answer=f"Test answer for: {data.question}")
 
     monkeypatch.setattr("app.main.ai_chain", FakeChain())
@@ -74,6 +74,30 @@ def test_ask_ai_returns_answer(monkeypatch) -> None:
         "answer": "Test answer for: Vad ar medelvardet?",
         "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
     }
+
+
+def test_ask_ai_sends_dataset_context_to_chain(monkeypatch) -> None:
+    clear_dataset()
+    client.post(
+        "/data/upload",
+        files={"file": ("people.csv", "name,age\nAlice,10\nBob,20\nCharlie,30\n", "text/csv")},
+    )
+
+    captured_data = {}
+
+    class FakeChain:
+        def invoke(self, data):
+            captured_data["columns"] = data.columns
+            captured_data["preview_records"] = data.preview_records
+            return ParserOutput(answer="The model answered.")
+
+    monkeypatch.setattr("app.main.ai_chain", FakeChain())
+
+    response = client.post("/ai/ask", json={"question": "Who is the oldest?"})
+
+    assert response.status_code == 200
+    assert captured_data["columns"] == ["name", "age"]
+    assert {"name": "Charlie", "age": 30} in captured_data["preview_records"]
 
 
 def test_ask_ai_rejects_empty_question() -> None:

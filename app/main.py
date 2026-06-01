@@ -3,7 +3,15 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from app.chain.pipeline import build_ai_chain
 from app.config import settings
-from app.data import create_stats, get_columns, get_dtypes, has_dataset, read_csv_file, save_dataset
+from app.data import (
+    create_stats,
+    get_columns,
+    get_dtypes,
+    get_preview_records,
+    has_dataset,
+    read_csv_file,
+    save_dataset,
+)
 from app.schemas import AskRequest, AskResponse, PromptInput
 
 app = FastAPI(title="KK2 Oraklet")
@@ -55,12 +63,13 @@ def ask_ai(request: AskRequest) -> AskResponse:
         raise HTTPException(status_code=400, detail="Upload a dataset before asking questions.")
 
     try:
-        result = ai_chain.run(
+        result = ai_chain.invoke(
             PromptInput(
                 question=request.question,
                 stats=create_stats(),
                 columns=get_columns(),
                 dtypes=get_dtypes(),
+                preview_records=get_preview_records(),
             )
         )
     except Exception as error:

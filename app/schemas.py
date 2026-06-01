@@ -16,6 +16,7 @@ class PromptInput(BaseModel):
     stats: dict
     columns: list[str]
     dtypes: dict[str, str]
+    preview_records: list[dict]
 
 
 class PromptOutput(BaseModel):

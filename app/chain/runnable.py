@@ -1,29 +1,64 @@
-from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
 
-InputType = TypeVar("InputType")
-OutputType = TypeVar("OutputType")
-NextOutputType = TypeVar("NextOutputType")
+I = TypeVar("I")
+O = TypeVar("O")
+M = TypeVar("M")
 
 
-class Runnable(ABC, Generic[InputType, OutputType]):
-    @abstractmethod
-    def run(self, data: InputType) -> OutputType:
-        pass
+class Runnable(BaseModel, Generic[I, O]):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __or__(
-        self,
-        next_step: "Runnable[OutputType, NextOutputType]",
-    ) -> "Runnable[InputType, NextOutputType]":
-        return RunnableSequence(self, next_step)
+    name: str | None = None
+
+    def invoke(self, data: I) -> O:
+        raise NotImplementedError("Subclasses is not implemented")
+
+    def __or__(self, other: Any) -> "RunnableSequence":
+        if isinstance(other, Runnable):
+            return RunnableSequence.model_construct(
+                first=self,
+                second=other,
+            )
+
+        if callable(other):
+            return RunnableSequence.model_construct(
+                first=self,
+                second=RunnableLambda.model_construct(
+                    func=other,
+                    name=other.__name__,
+                ),
+                name=other.__name__,
+            )
+
+        return NotImplemented
+
+    def __ror__(self, other: Any) -> Any:
+        if callable(other):
+            return RunnableSequence.model_construct(
+                first=RunnableLambda.model_construct(
+                    func=other,
+                    name=other.__name__,
+                ),
+                second=self,
+                name=other.__name__,
+            )
+
+        return NotImplemented
 
 
-class RunnableSequence(Runnable[InputType, OutputType]):
-    def __init__(self, first: Runnable, second: Runnable) -> None:
-        self.first = first
-        self.second = second
+class RunnableLambda(Runnable[I, O]):
+    func: Callable[[I], O]
 
-    def run(self, data: InputType) -> OutputType:
-        first_result = self.first.run(data)
-        return self.second.run(first_result)
+    def invoke(self, data: I) -> O:
+        return self.func(data)
+
+
+class RunnableSequence(Runnable[I, O], Generic[I, M, O]):
+    first: SerializeAsAny[Runnable[I, M]]
+    second: SerializeAsAny[Runnable[M, O]]
+
+    def invoke(self, data: I) -> O:
+        return self.second.invoke(self.first.invoke(data))

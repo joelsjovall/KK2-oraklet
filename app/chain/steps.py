@@ -8,38 +8,40 @@ from app.schemas import LLMInput, ParserInput, ParserOutput, PromptInput
 
 
 class PromptBuilder(Runnable[PromptInput, LLMInput]):
-    def run(self, data: PromptInput) -> LLMInput:
+    name: str = "prompt_builder"
+
+    def invoke(self, data: PromptInput) -> LLMInput:
         stats_json = json.dumps(data.stats, ensure_ascii=False)
+        records_json = json.dumps(data.preview_records, ensure_ascii=False)
 
         prompt = (
-            "You are KK2 Oraklet, an assistant that answers questions about a CSV dataset.\n"
-            "Answer briefly in Swedish. Use only the dataset information below.\n\n"
+            "Answer the user's question about the CSV dataset.\n"
+            "Use only the dataset information below. Answer with one short sentence.\n"
+            "Write only the answer, no labels and no repeated text.\n\n"
             f"Columns: {data.columns}\n"
             f"Data types: {data.dtypes}\n"
+            f"Dataset rows preview: {records_json}\n"
             f"Statistics from pandas describe(): {stats_json}\n\n"
             f"Question: {data.question}\n"
-            "Svar:"
+            "Answer:"
         )
         return LLMInput(prompt=prompt)
 
 
 class LLMRunner(Runnable[LLMInput, ParserInput]):
-    def __init__(
-        self,
-        generator: Callable[[str], Any] | None = None,
-        model_name: str = settings.model_name,
-        max_new_tokens: int = settings.max_new_tokens,
-    ) -> None:
-        self.generator = generator
-        self.model_name = model_name
-        self.max_new_tokens = max_new_tokens
+    name: str = "llm_runner"
+    generator: Callable[[str], Any] | None = None
+    model_name: str = settings.model_name
+    max_new_tokens: int = settings.max_new_tokens
 
-    def run(self, data: LLMInput) -> ParserInput:
+    def invoke(self, data: LLMInput) -> ParserInput:
         generator = self._get_generator()
         result = generator(
             data.prompt,
             max_new_tokens=self.max_new_tokens,
             return_full_text=False,
+            do_sample=False,
+            repetition_penalty=1.2,
         )
         generated_text = self._extract_text(result)
         return ParserInput(generated_text=generated_text)
@@ -69,13 +71,29 @@ class LLMRunner(Runnable[LLMInput, ParserInput]):
 
 
 class ResponseParser(Runnable[ParserInput, ParserOutput]):
-    def run(self, data: ParserInput) -> ParserOutput:
-        answer = data.generated_text
+    name: str = "response_parser"
 
-        if "Svar:" in answer:
-            answer = answer.split("Svar:")[-1]
+    def invoke(self, data: ParserInput) -> ParserOutput:
+        answer = data.generated_text
+        answer = answer.replace("\\n", "\n")
+        answer = answer.replace('\\"', '"')
+
+        for marker in ["Svar:", "Answer in Swedish:", "Answer:", "Question:"]:
+            if marker in answer:
+                answer = answer.split(marker, 1)[1]
+                break
 
         answer = answer.strip()
+        answer = answer.strip(" \"'")
+
+        labels = ("Svar:", "Answer in Swedish:", "Answer:", "Question:")
+        lines = [
+            line.strip(" \"'")
+            for line in answer.splitlines()
+            if line.strip() and not line.strip().startswith(labels)
+        ]
+        if lines:
+            answer = lines[0]
 
         if not answer:
             answer = "Jag kunde inte skapa ett svar."
