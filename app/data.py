@@ -33,5 +33,19 @@ def create_stats() -> dict:
     return stats.to_dict()
 
 
+def get_columns() -> list[str]:
+    if _dataset is None:
+        return []
+
+    return list(_dataset.columns)
+
+
+def get_dtypes() -> dict[str, str]:
+    if _dataset is None:
+        return {}
+
+    return {column: str(dtype) for column, dtype in _dataset.dtypes.items()}
+
+
 def read_csv_file(file_content: bytes) -> pd.DataFrame:
     return pd.read_csv(BytesIO(file_content))

@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable
 from typing import Any
 
@@ -8,10 +9,15 @@ from app.schemas import LLMInput, ParserInput, ParserOutput, PromptInput
 
 class PromptBuilder(Runnable[PromptInput, LLMInput]):
     def run(self, data: PromptInput) -> LLMInput:
+        stats_json = json.dumps(data.stats, ensure_ascii=False)
+
         prompt = (
-            "Du är KK2 Oraklet, en hjälpsam AI-assistent för en skoluppgift.\n"
-            "Svara kort och tydligt på svenska.\n\n"
-            f"Fråga: {data.question}\n"
+            "You are KK2 Oraklet, an assistant that answers questions about a CSV dataset.\n"
+            "Answer briefly in Swedish. Use only the dataset information below.\n\n"
+            f"Columns: {data.columns}\n"
+            f"Data types: {data.dtypes}\n"
+            f"Statistics from pandas describe(): {stats_json}\n\n"
+            f"Question: {data.question}\n"
             "Svar:"
         )
         return LLMInput(prompt=prompt)
@@ -30,7 +36,11 @@ class LLMRunner(Runnable[LLMInput, ParserInput]):
 
     def run(self, data: LLMInput) -> ParserInput:
         generator = self._get_generator()
-        result = generator(data.prompt)
+        result = generator(
+            data.prompt,
+            max_new_tokens=self.max_new_tokens,
+            return_full_text=False,
+        )
         generated_text = self._extract_text(result)
         return ParserInput(generated_text=generated_text)
 
@@ -41,7 +51,6 @@ class LLMRunner(Runnable[LLMInput, ParserInput]):
             self.generator = pipeline(
                 "text-generation",
                 model=self.model_name,
-                max_new_tokens=self.max_new_tokens,
             )
 
         return self.generator

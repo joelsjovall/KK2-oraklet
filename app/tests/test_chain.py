@@ -31,16 +31,25 @@ def test_runnable_can_be_chained_with_pipe_operator() -> None:
     assert result == NumberOutput(value=13)
 
 
-def test_prompt_builder_creates_prompt_from_question() -> None:
-    result = PromptBuilder().run(PromptInput(question="Vad är medelvärde?"))
+def test_prompt_builder_creates_prompt_from_question_and_stats() -> None:
+    result = PromptBuilder().run(
+        PromptInput(
+            question="Vad ar medelvardet?",
+            stats={"score": {"mean": 15.0}},
+            columns=["name", "score"],
+            dtypes={"name": "object", "score": "int64"},
+        )
+    )
 
     assert isinstance(result, LLMInput)
-    assert "Vad är medelvärde?" in result.prompt
+    assert "Vad ar medelvardet?" in result.prompt
+    assert "score" in result.prompt
+    assert "15.0" in result.prompt
     assert "Svar:" in result.prompt
 
 
 def test_llm_runner_uses_given_generator() -> None:
-    def fake_generator(prompt: str) -> list[dict[str, str]]:
+    def fake_generator(prompt: str, **kwargs) -> list[dict[str, str]]:
         return [{"generated_text": prompt + " Ett test-svar."}]
 
     result = LLMRunner(generator=fake_generator).run(LLMInput(prompt="Svar:"))
@@ -50,17 +59,24 @@ def test_llm_runner_uses_given_generator() -> None:
 
 
 def test_response_parser_returns_clean_answer() -> None:
-    result = ResponseParser().run(ParserInput(generated_text="Fråga: Hej\nSvar: Hej tillbaka"))
+    result = ResponseParser().run(ParserInput(generated_text="Fraga: Hej\nSvar: Hej tillbaka"))
 
     assert result == ParserOutput(answer="Hej tillbaka")
 
 
 def test_full_ai_chain_with_fake_llm() -> None:
-    def fake_generator(prompt: str) -> list[dict[str, str]]:
-        return [{"generated_text": prompt + " Detta är ett kedjesvar."}]
+    def fake_generator(prompt: str, **kwargs) -> list[dict[str, str]]:
+        return [{"generated_text": prompt + " Detta ar ett kedjesvar."}]
 
     chain = PromptBuilder() | LLMRunner(generator=fake_generator) | ResponseParser()
 
-    result = chain.run(PromptInput(question="Fungerar kedjan?"))
+    result = chain.run(
+        PromptInput(
+            question="Fungerar kedjan?",
+            stats={"score": {"mean": 15.0}},
+            columns=["score"],
+            dtypes={"score": "int64"},
+        )
+    )
 
-    assert result == ParserOutput(answer="Detta är ett kedjesvar.")
+    assert result == ParserOutput(answer="Detta ar ett kedjesvar.")

@@ -6,11 +6,16 @@ class AskRequest(BaseModel):
 
 
 class AskResponse(BaseModel):
+    question: str
     answer: str
+    model: str
 
 
 class PromptInput(BaseModel):
     question: str
+    stats: dict
+    columns: list[str]
+    dtypes: dict[str, str]
 
 
 class PromptOutput(BaseModel):

@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
 from app.data import clear_dataset
-from app.schemas import ParserOutput
 from app.main import app
+from app.schemas import ParserOutput
 
 
 client = TestClient(app)
@@ -35,6 +35,8 @@ def test_upload_csv_and_get_stats() -> None:
     assert upload_response.status_code == 200
     assert upload_response.json()["rows"] == 2
     assert upload_response.json()["columns"] == ["name", "score"]
+    assert "name" in upload_response.json()["dtypes"]
+    assert upload_response.json()["dtypes"]["score"] == "int64"
 
     stats_response = client.get("/data/stats")
 
@@ -52,19 +54,37 @@ def test_upload_rejects_non_csv_file() -> None:
 
 
 def test_ask_ai_returns_answer(monkeypatch) -> None:
+    clear_dataset()
+    client.post(
+        "/data/upload",
+        files={"file": ("scores.csv", "name,score\nAlice,10\nBob,20\n", "text/csv")},
+    )
+
     class FakeChain:
         def run(self, data):
             return ParserOutput(answer=f"Test answer for: {data.question}")
 
     monkeypatch.setattr("app.main.ai_chain", FakeChain())
 
-    response = client.post("/ai/ask", json={"question": "Vad är KK2 Oraklet?"})
+    response = client.post("/ai/ask", json={"question": "Vad ar medelvardet?"})
 
     assert response.status_code == 200
-    assert response.json() == {"answer": "Test answer for: Vad är KK2 Oraklet?"}
+    assert response.json() == {
+        "question": "Vad ar medelvardet?",
+        "answer": "Test answer for: Vad ar medelvardet?",
+        "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    }
 
 
 def test_ask_ai_rejects_empty_question() -> None:
     response = client.post("/ai/ask", json={"question": "   "})
+
+    assert response.status_code == 400
+
+
+def test_ask_ai_requires_uploaded_dataset() -> None:
+    clear_dataset()
+
+    response = client.post("/ai/ask", json={"question": "Vad visar datat?"})
 
     assert response.status_code == 400
