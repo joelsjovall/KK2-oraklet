@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.data import clear_dataset
+from app.schemas import ParserOutput
 from app.main import app
 
 
@@ -46,5 +47,24 @@ def test_upload_rejects_non_csv_file() -> None:
         "/data/upload",
         files={"file": ("scores.txt", "score\n10\n", "text/plain")},
     )
+
+    assert response.status_code == 400
+
+
+def test_ask_ai_returns_answer(monkeypatch) -> None:
+    class FakeChain:
+        def run(self, data):
+            return ParserOutput(answer=f"Test answer for: {data.question}")
+
+    monkeypatch.setattr("app.main.ai_chain", FakeChain())
+
+    response = client.post("/ai/ask", json={"question": "Vad är KK2 Oraklet?"})
+
+    assert response.status_code == 200
+    assert response.json() == {"answer": "Test answer for: Vad är KK2 Oraklet?"}
+
+
+def test_ask_ai_rejects_empty_question() -> None:
+    response = client.post("/ai/ask", json={"question": "   "})
 
     assert response.status_code == 400
