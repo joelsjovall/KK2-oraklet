@@ -30,6 +30,6 @@ Jag valde att dela upp logiken i tre delar: `PromptBuilder`, `LLMRunner` och `Re
 
 Jag använde även Pydantic-modeller för att tydliggöra vilken data som skickas mellan de olika stegen.
 
-Datasetet lagras i minnet istället för i en databas. För en lokal skoluppgift tycker jag att det är en enkel och rimlig lösning, även om datat försvinner när servern startas om.
+Datasetet lagras i minnet istället för i en databas. Jag tycker det är en rimlig lösning för ett skolprojekt, även om datat försvinner när servern startas om.
 
 Den viktigaste lärdomen från projektet är att AI-modellen bara är en del av systemet. Minst lika viktigt är hur data hanteras, hur prompten byggs upp och hur resultatet presenteras för användaren.
