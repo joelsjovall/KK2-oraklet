@@ -1,13 +1,35 @@
-Reflektion KK2 Oraklet
+# Reflektion KK2 – Oraklet
 
-1. Säkerhetsaspekter
+## 1. Säkerhetsaspekter
 
-Under arbetet med projektet har jag funderat en del på vilka säkerhetsrisker som finns, även om applikationen bara är tänkt att köras lokalt. I projektet finns en .env-fil som inte är incheckad i GitHub eftersom den ligger i .gitignore. Det är viktigt eftersom sådana filer ofta innehåller känslig information, till exempel API-nycklar eller andra hemligheter som inte ska vara publika.
+I projektet har jag försökt tänka på grundläggande säkerhet. Exempelvis ligger `.env` i `.gitignore` så att känslig information som API-nycklar inte riskerar att hamna på GitHub. I den här versionen används dock en lokal modell, vilket innebär att inga externa nycklar behövs.
 
-I den nuvarande versionen används SmolLM2 lokalt via transformers.pipeline, vilket innebär att jag inte behöver någon extern API-nyckel. Om jag däremot hade valt att använda exempelvis HuggingFace Inference API hade nyckeln hämtats från miljövariabler istället för att skrivas direkt i koden.
+Jag har även lagt in enkel validering av uppladdade filer genom att kontrollera att de är CSV-filer och hantera vanliga fel som tomma eller ogiltiga filer. Om projektet skulle användas i produktion hade jag velat lägga till fler skydd, exempelvis filstorleksbegränsningar och bättre loggning.
 
-En annan sak jag behövde tänka på var filuppladdningen. Eftersom användaren själv kan ladda upp filer finns det alltid en risk att fel typ av fil skickas in. Därför kontrolleras att filen har ändelsen .csv innan den behandlas. Jag fångar även upp vanliga fel, exempelvis om filen är tom eller om Pandas inte kan läsa innehållet.
+En annan risk är prompt injection, där användaren försöker påverka modellen att ignorera instruktionerna. För att minska risken byggs prompten så att modellen fokuserar på datasetets innehåll.
 
-Det här är dock bara en grundläggande kontroll. Om applikationen skulle användas av riktiga användare hade jag velat lägga till fler skydd, exempelvis begränsningar för filstorlek, bättre felhantering och tydligare loggning. Jag hade också velat säkerställa att interna fel inte visas direkt för användaren.
+## 2. Dataskydd och GDPR
 
-Jag upptäckte även att prompt injection är något som behöver tas på allvar när man arbetar med språkmodeller. Eftersom användaren själv skriver frågan till modellen går det att försöka påverka dess beteende genom instruktioner som egentligen inte hör till uppgiften. För att minska den risken försöker PromptBuilder tydligt styra modellen att endast använda information från datasetet. Det är ingen perfekt lösning, men det hjälper modellen att hålla sig till den data som faktiskt finns tillgänglig.
+Datasetet lagras endast tillfälligt i minnet och sparas inte permanent. Det minskar risken för att data lagras längre än nödvändigt.
+
+Samtidigt kan uppladdade dataset innehålla personuppgifter, vilket innebär att GDPR behöver beaktas om systemet skulle användas i verkligheten. Då hade det krävts tydligare information till användaren, rutiner för radering av data och bättre åtkomstkontroll.
+
+Eftersom modellen körs lokalt skickas inte informationen vidare till externa AI-tjänster, vilket är positivt ur ett dataskyddsperspektiv.
+
+## 3. AI-risker och ansvar
+
+Under arbetet märkte jag att modellen ibland kunde ge svar som lät rimliga men som inte helt baserades på datasetet. Det visar att språkmodeller kan hallucinera och därför inte bör ses som en källa till absoluta fakta.
+
+Jag märkte också att modellens svar kunde variera beroende på hur frågan formulerades. Därför blev promptens utformning en viktig del av lösningen.
+
+För att få stabilare tester valde jag att använda mockade komponenter istället för att köra den riktiga modellen i varje test.
+
+## 4. Designval
+
+Jag valde att dela upp logiken i tre delar: `PromptBuilder`, `LLMRunner` och `ResponseParser`. Det gjorde koden enklare att förstå, testa och felsöka eftersom varje del har ett tydligt ansvar.
+
+Jag använde även Pydantic-modeller för att tydliggöra vilken data som skickas mellan de olika stegen.
+
+Datasetet lagras i minnet istället för i en databas. För en lokal skoluppgift tycker jag att det är en enkel och rimlig lösning, även om datat försvinner när servern startas om.
+
+Den viktigaste lärdomen från projektet är att AI-modellen bara är en del av systemet. Minst lika viktigt är hur data hanteras, hur prompten byggs upp och hur resultatet presenteras för användaren.
